@@ -3,10 +3,15 @@ from __future__ import print_function
 import binascii
 import os
 import sys
+import json
+import pprint
+import textwrap
 
 from collections import defaultdict
 
 import gyp.xcode_emulation
+
+ANALYSIS_FILE = 'gyp_analysis.json'
 
 CONFIGURATIONS = {'Debug', 'Release'}
 KNOWN_TARGET_TYPES = {'shared_library', 'static_library', 'executable', 'none'}
@@ -16,7 +21,8 @@ SOURCE_CATEGORIES = {
     '.cpp': 'cc',
     '.cxx': 'cc',
 }
-GENERATED = '${{CMAKE_BINARY_DIR}}/generated_{}'.format(binascii.b2a_hex(os.urandom(16)))
+GENERATED_GUID = '{}'.format(binascii.b2a_hex(os.urandom(16)))
+GENERATED = '${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'
 
 def get_OS():
     if sys.platform == 'darwin':
@@ -27,6 +33,18 @@ def get_OS():
 
     # TBD: implement windows
     raise RuntimeError('Unknown platform: {}'.format(sys.platform))
+
+def get_CMake_OS(OS):
+    if OS.startswith('linux'):
+        return 'Linux'
+
+    if OS == 'win32':
+        return 'Windows'
+
+    if OS == 'darwin':
+        return 'Darwin'
+
+    raise RuntimeError('Unknown platform: {}'.format(OS))
 
 def xcode_flags_factories(xcode):
     def get_factory(category):
@@ -93,10 +111,13 @@ generator_default_variables = {
 
 class Writer(object):
     def __init__(self, file):
-        self._file       = file
-        self._interfaces = set()
+        self._file         = file
+        self._interfaces   = set()
+        self._indent_level = 0
 
     def _write(self, *args, **kwargs):
+        indentation = ''.join(' ' for i in range(self._indent_level))
+        args = [indentation + arg.replace('%%ncg_guid%%', GENERATED_GUID) for arg in args]
         print(*args, file=self._file, **kwargs)
 
     def _exposure(self, unqualified_name, property_name):
@@ -107,6 +128,14 @@ class Writer(object):
         if property_name in {'target_link_libraries'}:
             return ' PUBLIC'
         return ' PRIVATE'
+
+    def platform_start(self, platform):
+        self._write('if(CMAKE_SYSTEM_NAME STREQUAL {})'.format(platform))
+        self._indent_level += 4
+
+    def platform_end(self):
+        self._indent_level -= 4
+        self._write('endif()')
 
     def properties(self, property_name, target_name, properties):
         if len(properties) == 0:
@@ -180,8 +209,8 @@ class Writer(object):
         self._write(')\n')
         self._interfaces.add(unqualified_name)
 
-    def target(self, type, unqualified_name, source_categories):
-        self._write('add_{}('.format(type))
+    def target(self, target_type, lib_type, unqualified_name, source_categories):
+        self._write('add_{}('.format(target_type))
         self._write('    {}'.format(unqualified_name))
         self._write('    EXCLUDE_FROM_ALL')
         for category in source_categories:
@@ -253,7 +282,7 @@ def generate_config_properties(writer,
                                                 configuration_name,
                                                 properties)
 
-def generate_target(name, target, working_directory, analysis):
+def generate_target(platform, name, target, working_directory, analysis):
     unqualified_name = unqualify_name(name)
     path             = os.path.dirname(os.path.relpath(name.split(':')[0],
                                                        working_directory))
@@ -266,7 +295,7 @@ def generate_target(name, target, working_directory, analysis):
 
     with open(cmake, 'a') as f:
         writer = Writer(f)
-
+        writer.platform_start(platform)
         sources = set(target['sources'])
         for action in target.get('actions', []):
             writer.custom_command(action['inputs'],
@@ -295,8 +324,13 @@ def generate_target(name, target, working_directory, analysis):
                 link_dependencies.add(unqualified_depedency)
 
         target_type = None
-        if target['type'] in {'static_library', 'shared_library'}:
+        library_type = None
+        if target['type'] == 'static_library':
             target_type = 'library'
+            library_type = 'STATIC'
+        elif target['type'] == 'shared_library':
+            target_type = 'library'
+            library_type = 'SHARED'
         elif target['type'] == 'executable':
             target_type = 'executable'
 
@@ -367,15 +401,17 @@ def generate_target(name, target, working_directory, analysis):
                                   nonlink_dependencies)
 
             writer.target(target_type,
+                          library_type,
                           unqualified_name,
                           sources_flags_by_category.keys())
 
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: list(link_dependencies) + target.get('ldflags', []),
+                                       lambda _, target: list(link_dependencies) + target.get('libraries', []) + target.get('ldflags', []),
                                        'target_link_libraries',
                                        True)
+        writer.platform_end()
 
     return lists, unqualified_name
 
@@ -394,7 +430,7 @@ def analyze(targets):
                 if action.get('process_outputs_as_sources', False):
                     produces_sources = True
                 for output in action.get('outputs', []):
-                    if output.startswith(GENERATED):
+                    if output.startswith('${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'):
                         all_generated_sources.add(output)
             if target['type'] in {'shared_library', 'static_library'} and \
                                                               produces_sources:
@@ -409,7 +445,7 @@ def analyze(targets):
         'all_generated_sources': all_generated_sources,
     }
 
-def GenerateOutput(names, targets, data, params):
+def generate_target_cmakes(platform, names, targets, data, params):
     analysis = analyze(targets)
     all_lists = defaultdict(set)
     for name, target in targets.iteritems():
@@ -419,7 +455,8 @@ def GenerateOutput(names, targets, data, params):
         target['sources'] = target.get('sources', [])
         target['actions'] = target.get('actions', [])
 
-        lists, unqualified_name = generate_target(name,
+        lists, unqualified_name = generate_target(platform,
+                                                  name,
                                                   target,
                                                   params['cwd'],
                                                   analysis)
@@ -440,3 +477,15 @@ def GenerateOutput(names, targets, data, params):
             else:
                 print('add_subdirectory({})'.format(directory), file=f)
 
+def main():
+    with open(ANALYSIS_FILE, 'r') as f:
+        all_platforms = json.load(f)
+        for platform, data in all_platforms.iteritems():
+            generate_target_cmakes(get_CMake_OS(platform),
+                                   data['names'],
+                                   data['targets'],
+                                   data['data'],
+                                   data['params'])
+
+if __name__ == '__main__':
+    main()
