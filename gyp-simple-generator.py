@@ -31,6 +31,8 @@ generator_default_variables = {
     'STATIC_LIB_SUFFIX': '${CMAKE_STATIC_LIBRARY_SUFFIX}',
     'SHARED_LIB_PREFIX': '${CMAKE_SHARED_LIBRARY_PREFIX}',
     'SHARED_LIB_SUFFIX': '${CMAKE_SHARED_LIBRARY_SUFFIX}',
+
+    'CONFIGURATION_NAME': '${CMAKE_BUILD_TYPE}'
 }
 
 class BuildBlobEncoder(json.JSONEncoder):
