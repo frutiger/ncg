@@ -22,7 +22,7 @@ SOURCE_CATEGORIES = {
     '.cxx': 'cc',
 }
 GENERATED_GUID = '{}'.format(binascii.b2a_hex(os.urandom(16)))
-GENERATED = '${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'
+GENERATED = '${CMAKE_BINARY_DIR}/generated_' + GENERATED_GUID
 
 def get_OS():
     if sys.platform == 'darwin':
@@ -282,16 +282,17 @@ def generate_config_properties(writer,
                                                 configuration_name,
                                                 properties)
 
-def generate_target(platform, name, target, working_directory, analysis):
+def generate_target(platform, name, target, analysis, all_targets):
     unqualified_name = unqualify_name(name)
-    path             = os.path.dirname(os.path.relpath(name.split(':')[0],
-                                                       working_directory))
+    path             = os.path.dirname(name.split(':')[0])
 
     lists = os.path.join(path, 'CMakeLists.txt')
     cmake = os.path.join(path, '{}.cmake'.format(unqualified_name))
 
-    with open(lists, 'a') as f:
-        print('include({})'.format(os.path.basename(cmake)), file=f)
+    if unqualified_name not in all_targets:
+        all_targets.add(unqualified_name)
+        with open(lists, 'a') as f:
+            print('include({})'.format(os.path.basename(cmake)), file=f)
 
     with open(cmake, 'a') as f:
         writer = Writer(f)
@@ -415,39 +416,9 @@ def generate_target(platform, name, target, working_directory, analysis):
 
     return lists, unqualified_name
 
-def analyze(targets):
-    executables           = set()
-    generated_libraries   = set()
-    interface_libraries   = set()
-    all_generated_sources = set()
-
-    for name, target in targets.iteritems():
-        if target['type'] == 'executable':
-            executables.add(name)
-        if 'sources' not in target:
-            produces_sources = False
-            for action in target.get('actions', []):
-                if action.get('process_outputs_as_sources', False):
-                    produces_sources = True
-                for output in action.get('outputs', []):
-                    if output.startswith('${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'):
-                        all_generated_sources.add(output)
-            if target['type'] in {'shared_library', 'static_library'} and \
-                                                              produces_sources:
-                generated_libraries.add(name)
-            else:
-                interface_libraries.add(name)
-
-    return {
-        'executables':           executables,
-        'generated_libraries':   generated_libraries,
-        'interface_libraries':   interface_libraries,
-        'all_generated_sources': all_generated_sources,
-    }
-
-def generate_target_cmakes(platform, names, targets, data, params):
-    analysis = analyze(targets)
-    all_lists = defaultdict(set)
+def generate_target_cmakes(platform, targets, analysis):
+    all_lists   = defaultdict(set)
+    all_targets = set()
     for name, target in targets.iteritems():
         if target['type'] not in KNOWN_TARGET_TYPES:
             raise RuntimeError('Unknown target type: {}'.format(target['type']))
@@ -458,8 +429,8 @@ def generate_target_cmakes(platform, names, targets, data, params):
         lists, unqualified_name = generate_target(platform,
                                                   name,
                                                   target,
-                                                  params['cwd'],
-                                                  analysis)
+                                                  analysis,
+                                                  all_targets)
         if unqualified_name in all_lists[lists]:
             raise RuntimeError(
                   'Multiple targets with the same name: {} in {}'.format(lists,
@@ -481,11 +452,10 @@ def main():
     with open(ANALYSIS_FILE, 'r') as f:
         all_platforms = json.load(f)
         for platform, data in all_platforms.iteritems():
+            print('Writing files for platform: {}'.format(get_CMake_OS(platform)))
             generate_target_cmakes(get_CMake_OS(platform),
-                                   data['names'],
                                    data['targets'],
-                                   data['data'],
-                                   data['params'])
+                                   data['analysis'])
 
 if __name__ == '__main__':
     main()
