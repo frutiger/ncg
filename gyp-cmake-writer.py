@@ -416,9 +416,8 @@ def generate_target(platform, name, target, analysis, all_targets):
 
     return lists, unqualified_name
 
-def generate_target_cmakes(platform, targets, analysis):
+def generate_target_cmakes(platform, targets, analysis, all_targets):
     all_lists   = defaultdict(set)
-    all_targets = set()
     for name, target in targets.iteritems():
         if target['type'] not in KNOWN_TARGET_TYPES:
             raise RuntimeError('Unknown target type: {}'.format(target['type']))
@@ -451,11 +450,13 @@ def generate_target_cmakes(platform, targets, analysis):
 def main():
     with open(ANALYSIS_FILE, 'r') as f:
         all_platforms = json.load(f)
+        all_targets = set()
         for platform, data in all_platforms.iteritems():
             print('Writing files for platform: {}'.format(get_CMake_OS(platform)))
             generate_target_cmakes(get_CMake_OS(platform),
                                    data['targets'],
-                                   data['analysis'])
+                                   data['analysis'],
+                                   all_targets)
 
 if __name__ == '__main__':
     main()

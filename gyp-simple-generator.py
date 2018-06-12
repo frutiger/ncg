@@ -15,9 +15,6 @@ def get_OS():
     if sys.platform == 'win32':
         return 'win32'
 
-    # TBD: implement windows
-    raise RuntimeError('Unknown platform: {}'.format(sys.platform))
-
 generator_default_variables = {
     'OS': get_OS(),
 
@@ -70,12 +67,25 @@ def unqualify_path(path, working_directory):
     unqualified_path = os.path.dirname(os.path.relpath(path,
                                                        working_directory))
     file_name = os.path.basename(path)
+    if unqualified_path == '':
+        return file_name + ':' + target
     return unqualified_path + '/' + file_name + ':' + target
 
-def normalize_target_paths(targets, working_directory):
+def normalize_target_paths(targets, work_dir):
     new_targets = {}
     for key, value in targets.iteritems():
-        new_targets[unqualify_path(key, working_directory)] = value
+        # First, turn aboslute paths in dependencies/original_dependencies
+        # into relative paths from the nodesrc directory
+        if 'dependencies' in value:
+            value['dependencies'] = [unqualify_path(dep, work_dir) for dep in \
+            value['dependencies']]
+
+        if 'dependencies_original' in value:
+            value['dependencies_original'] = [unqualify_path(dep, work_dir) for \
+            dep in value['dependencies_original']]
+
+        # Turn the path specified in the target key into a relative path
+        new_targets[unqualify_path(key, work_dir)] = value
 
     return new_targets
 
@@ -123,5 +133,6 @@ def GenerateOutput(names, targets, data, params):
     }
 
     with open(BLOB_FILE, 'w') as f:
-        json.dump(build_blob, f, indent=4, cls=BuildBlobEncoder)
+        json.dump(build_blob, f, sort_keys=True,
+            separators=(',', ': '), indent=4, cls=BuildBlobEncoder)
 
