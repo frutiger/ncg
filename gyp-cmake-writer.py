@@ -24,27 +24,17 @@ SOURCE_CATEGORIES = {
 GENERATED_GUID = '{}'.format(binascii.b2a_hex(os.urandom(16)))
 GENERATED = '${CMAKE_BINARY_DIR}/generated_' + GENERATED_GUID
 
-def get_OS():
-    if sys.platform == 'darwin':
-        return 'mac'
-
-    if sys.platform.startswith('linux'):
-        return 'linux'
-
-    # TBD: implement windows
-    raise RuntimeError('Unknown platform: {}'.format(sys.platform))
-
-def get_CMake_OS(OS):
-    if OS.startswith('linux'):
+def get_cmake_os(platform):
+    if platform.startswith('linux'):
         return 'Linux'
 
-    if OS == 'win32':
+    if platform == 'win32':
         return 'Windows'
 
-    if OS == 'darwin':
+    if platform == 'darwin':
         return 'Darwin'
 
-    raise RuntimeError('Unknown platform: {}'.format(OS))
+    raise RuntimeError('Unknown platform: {}'.format(platform))
 
 def xcode_flags_factories(xcode):
     def get_factory(category):
@@ -93,21 +83,6 @@ def get_flags_factories(target):
         raise RuntimeError('Currently unsupported platform: ' + sys.platform)
 
     return generic_flags_factories()
-
-generator_default_variables = {
-    'OS': get_OS(),
-
-    'PRODUCT_DIR':             '${CMAKE_CURRENT_BINARY_DIR}',
-    'SHARED_INTERMEDIATE_DIR':  GENERATED,
-    'INTERMEDIATE_DIR':        '${CMAKE_CURRENT_BINARY_DIR}',
-
-    'EXECUTABLE_PREFIX': '',
-    'EXECUTABLE_SUFFIX': '${CMAKE_EXECUTABLE_SUFFIX}',
-    'STATIC_LIB_PREFIX': '${CMAKE_STATIC_LIBRARY_PREFIX}',
-    'STATIC_LIB_SUFFIX': '${CMAKE_STATIC_LIBRARY_SUFFIX}',
-    'SHARED_LIB_PREFIX': '${CMAKE_SHARED_LIBRARY_PREFIX}',
-    'SHARED_LIB_SUFFIX': '${CMAKE_SHARED_LIBRARY_SUFFIX}',
-}
 
 class Writer(object):
     def __init__(self, file):
@@ -452,11 +427,13 @@ def main():
         all_platforms = json.load(f)
         all_targets = set()
         for platform, data in all_platforms.iteritems():
-            print('Writing files for platform: {}'.format(get_CMake_OS(platform)))
-            generate_target_cmakes(get_CMake_OS(platform),
+            cmake_os = get_cmake_os(platform)
+            print('Writing files for platform: {}'.format(cmake_os))
+            generate_target_cmakes(cmake_os,
                                    data['targets'],
                                    data['analysis'],
                                    all_targets)
 
 if __name__ == '__main__':
     main()
+
