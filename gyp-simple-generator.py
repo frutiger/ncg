@@ -3,7 +3,7 @@ import sys
 import json
 
 GENERATED = '${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'
-BLOB_FILE = './all_platforms_build_blob.json'
+ANALYSIS_FILE = './gyp_analysis.json'
 
 def get_OS():
     if sys.platform == 'darwin':
@@ -32,7 +32,7 @@ generator_default_variables = {
     'CONFIGURATION_NAME': '${CMAKE_BUILD_TYPE}'
 }
 
-class BuildBlobEncoder(json.JSONEncoder):
+class AnalysisEncoder(json.JSONEncoder):
     def default(self, data):
         if type(data) == set:
             data = list(data)
@@ -122,17 +122,20 @@ def analyze(targets):
 def GenerateOutput(names, targets, data, params):
     targets = normalize_target_paths(targets, params['cwd'])
 
-    build_blob = {}
-    if os.path.isfile(BLOB_FILE):
-        with open(BLOB_FILE, 'r') as f:
-            build_blob = json.load(f)
+    analysis_data = {}
+    if os.path.isfile(ANALYSIS_FILE):
+        with open(ANALYSIS_FILE, 'r') as f:
+            analysis_data = json.load(f)
 
-    build_blob[sys.platform] = {
+    analysis_data[sys.platform] = {
         'targets'  : targets,
         'analysis' : analyze(targets)
     }
 
-    with open(BLOB_FILE, 'w') as f:
-        json.dump(build_blob, f, sort_keys=True,
-            separators=(',', ': '), indent=4, cls=BuildBlobEncoder)
+    with open(ANALYSIS_FILE, 'w') as f:
+        json.dump(analysis_data, f,
+                  sort_keys=True,
+                  separators=(',', ': '),
+                  indent=4,
+                  cls=AnalysisEncoder)
 
