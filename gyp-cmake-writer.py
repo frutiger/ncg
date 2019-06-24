@@ -74,13 +74,13 @@ def generic_flags_factories():
         return get_flags
     return get_factory
 
-def get_flags_factories(target):
-    if sys.platform == 'darwin':
+def get_flags_factories(platform, target):
+    if platform == 'Darwin':
         return xcode_flags_factories(gyp.xcode_emulation.XcodeSettings(target))
 
-    if sys.platform == 'win32':
+    if platform == 'Windows':
         # TBD: implement for win32
-        raise RuntimeError('Currently unsupported platform: ' + sys.platform)
+        raise RuntimeError('Currently unsupported platform: ' + platform)
 
     return generic_flags_factories()
 
@@ -203,13 +203,13 @@ class Writer(object):
 def unqualify_name(gyp_target):
     return gyp_target.split(':')[1].split('#')[0]
 
-def get_sources_flags_by_category(target, sources):
+def get_sources_flags_by_category(platform, target, sources):
     result = defaultdict(lambda: [set(), None])
     for source in sources:
         extension = os.path.splitext(source)[1]
         if extension in SOURCE_CATEGORIES:
             result[SOURCE_CATEGORIES[extension]][0].add(source)
-    flags_factories = get_flags_factories(target)
+    flags_factories = get_flags_factories(platform, target)
     for category in SOURCE_CATEGORIES.itervalues():
         result[category][1] = flags_factories(category)
 
@@ -315,7 +315,7 @@ def generate_target(platform, name, target, analysis, all_targets):
         elif name in analysis['interface_libraries']:
             if len(sources) == 0:
                 # TBD: do we need to export 'c' flags also?
-                flags_factory = get_flags_factories(target)('cc')
+                flags_factory = get_flags_factories(platform, target)('cc')
 
                 writer.interface_library(unqualified_name)
                 generate_config_properties(writer,
@@ -344,7 +344,7 @@ def generate_target(platform, name, target, analysis, all_targets):
                                        'target_link_libraries',
                                        True)
         elif target_type:
-            sources_flags_by_category = get_sources_flags_by_category(target, sources)
+            sources_flags_by_category = get_sources_flags_by_category(platform, target, sources)
             for category, sources_flags in sources_flags_by_category.iteritems():
                 sources, flags = sources_flags
                 if len(sources) == 0:
