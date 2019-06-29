@@ -198,7 +198,15 @@ class Writer(object):
         for source in sources:
             self._write('    {}'.format(source))
         self._write('    PROPERTIES GENERATED TRUE')
-        self._write(')')
+        self._write(')\n')
+
+    def copies(self, destination, files):
+        self._write('file(')
+        self._write('    COPY')
+        for file in files:
+            self._write('    {}'.format(file))
+        self._write('    DESTINATION {}'.format(destination))
+        self._write(')\n')
 
 def unqualify_name(gyp_target):
     return gyp_target.split(':')[1].split('#')[0]
@@ -375,6 +383,9 @@ def generate_target(platform, name, target, analysis, all_targets):
                 writer.properties('add_dependencies',
                                   '{}-{}'.format(unqualified_name, category),
                                   nonlink_dependencies)
+
+            for copy in target.get('copies', []):
+                writer.copies(copy['destination'], copy['files'])
 
             writer.target(target_type,
                           library_type,
