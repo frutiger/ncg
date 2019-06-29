@@ -16,10 +16,8 @@ ANALYSIS_FILE = 'gyp_analysis.json'
 CONFIGURATIONS = {'Debug', 'Release'}
 KNOWN_TARGET_TYPES = {'shared_library', 'static_library', 'executable', 'none'}
 SOURCE_CATEGORIES = {
-    '.c':   'c',
-    '.cc':  'cc',
-    '.cpp': 'cc',
-    '.cxx': 'cc',
+    'c':  {'.c'},
+    'cc': {'.cc', '.cpp', '.cxx'},
 }
 GENERATED_GUID = '{}'.format(binascii.b2a_hex(os.urandom(16)))
 GENERATED = '${CMAKE_BINARY_DIR}/generated_' + GENERATED_GUID
@@ -213,12 +211,20 @@ def unqualify_name(gyp_target):
 
 def get_sources_flags_by_category(platform, target, sources):
     result = defaultdict(lambda: [set(), None])
+
     for source in sources:
         extension = os.path.splitext(source)[1]
-        if extension in SOURCE_CATEGORIES:
-            result[SOURCE_CATEGORIES[extension]][0].add(source)
+        for category, extensions in SOURCE_CATEGORIES.iteritems():
+            if extension in extensions:
+                result[category][0].add(source)
+    for category in SOURCE_CATEGORIES:
+        if len(result[category][0]):
+            for source in sources:
+                extension = os.path.splitext(source)[1]
+                if extension == '.h':
+                    result[category][0].add(source)
     flags_factories = get_flags_factories(platform, target)
-    for category in SOURCE_CATEGORIES.itervalues():
+    for category in SOURCE_CATEGORIES:
         result[category][1] = flags_factories(category)
 
     return { category: value for category, value in result.iteritems() \
