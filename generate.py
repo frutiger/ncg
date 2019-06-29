@@ -302,10 +302,8 @@ def generate_target(platform, name, target, analysis, all_targets):
 
             all_dependencies.add(unqualified_depedency)
 
-            if d in analysis['executables']:
-                continue
-
-            if d in analysis['interface_libraries']:
+            if d in analysis['interface_libraries'] or \
+                                                  d in analysis['executables']:
                 nonlink_dependencies.add(unqualified_depedency)
             else:
                 link_dependencies.add(unqualified_depedency)
