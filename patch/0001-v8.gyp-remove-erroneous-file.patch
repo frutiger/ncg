@@ -1,0 +1,24 @@
+From 22fa295e05cee887edc79beba92fbd057573d6d0 Mon Sep 17 00:00:00 2001
+From: Masud Rahman <mrahman15@bloomberg.net>
+Date: Sat, 29 Jun 2019 13:09:58 -0400
+Subject: [PATCH] v8.gyp: remove erroneous file
+
+---
+ deps/v8/gypfiles/v8.gyp | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/deps/v8/gypfiles/v8.gyp b/deps/v8/gypfiles/v8.gyp
+index e7ea54c39b..9636288a7b 100644
+--- a/deps/v8/gypfiles/v8.gyp
++++ b/deps/v8/gypfiles/v8.gyp
+@@ -1183,7 +1183,6 @@
+         '../src/parsing/parsing.cc',
+         '../src/parsing/parsing.h',
+         '../src/parsing/pattern-rewriter.cc',
+-        '../src/parsing/preparse-data-format.h',
+         '../src/parsing/preparse-data.cc',
+         '../src/parsing/preparse-data.h',
+         '../src/parsing/preparsed-scope-data.cc',
+-- 
+2.22.0
+
