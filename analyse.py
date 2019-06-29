@@ -96,6 +96,13 @@ def analyze(targets):
     all_generated_sources = set()
 
     for name, target in targets.iteritems():
+        for action in target.get('actions', []):
+            if action.get('process_outputs_as_sources', False):
+                for output in action.get('outputs', []):
+                    if 'sources' not in target:
+                        target['sources'] = []
+                    target['sources'].append(output)
+
         if target['type'] == 'executable':
             executables.add(name)
         if 'sources' not in target:
