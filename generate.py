@@ -151,7 +151,6 @@ class Writer(object):
     def library_with_actions(self, unqualified_name, sources):
         self._write('add_library(')
         self._write('    {}'.format(unqualified_name))
-        self._write('    EXCLUDE_FROM_ALL')
         self._write('    {}/dummy.cc'.format(GENERATED))
         for source in sources:
             self._write('    {}'.format(source))
@@ -171,7 +170,6 @@ class Writer(object):
     def object_library(self, unqualified_name, category, sources):
         self._write('add_library(')
         self._write('    {}-{} OBJECT'.format(unqualified_name, category))
-        self._write('    EXCLUDE_FROM_ALL')
         for source in sorted(sources):
             self._write('    {}'.format(source))
         self._write(')\n')
@@ -185,7 +183,6 @@ class Writer(object):
     def target(self, target_type, lib_type, unqualified_name, source_categories):
         self._write('add_{}('.format(target_type))
         self._write('    {}'.format(unqualified_name))
-        self._write('    EXCLUDE_FROM_ALL')
         for category in source_categories:
             self._write('    $<TARGET_OBJECTS:{}-{}>'.format(unqualified_name,
                 category))
