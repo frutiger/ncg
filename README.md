@@ -50,7 +50,7 @@ $ ./configure --download=all --shared --with-intl=full-icu \
 
 # generate CMake files
 # NOTE: this needs to be run with Python 2
-$ PYTHONPATH=tools/gyp/pylib python ../ncg/generate.py gyp_analysis.json
+$ PYTHONPATH=tools/gyp/pylib python ../ncg/generate.py
 
 # macOS only: remove CoreFoundation frameworks from link lines, as this
 # confuses CMake
