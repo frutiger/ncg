@@ -61,7 +61,11 @@ $ cd ..
 $ mkdir out && cd out
 $ cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_STANDARD=14 -G Ninja ../node
 
-# build
+# the checked in gyp files do not express this dependency correctly so we
+# manually generate it first
+$ ninja generated_*/torque-generated/builtin-definitions-from-dsl.h
+
+# build all targets
 $ ninja
 ```
 
