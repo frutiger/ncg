@@ -2,7 +2,7 @@ import os
 import sys
 import json
 
-GENERATED = '${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'
+GENERATED = '${CMAKE_BINARY_DIR}/generated_$$ncg_guid$$'
 ANALYSIS_FILE = './gyp_analysis.json'
 
 def get_OS():
@@ -111,7 +111,7 @@ def analyze(targets):
                 if action.get('process_outputs_as_sources', False):
                     produces_sources = True
                 for output in action.get('outputs', []):
-                    if output.startswith('${CMAKE_BINARY_DIR}/generated_%%ncg_guid%%'):
+                    if output.startswith(GENERATED):
                         all_generated_sources.add(output)
             if target['type'] in {'shared_library', 'static_library'} and \
                                                               produces_sources:

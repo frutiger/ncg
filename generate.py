@@ -19,8 +19,8 @@ SOURCE_CATEGORIES = {
     'c':  {'.c'},
     'cc': {'.cc', '.cpp', '.cxx'},
 }
-GENERATED_GUID = '{}'.format(binascii.b2a_hex(os.urandom(16)))
-GENERATED = '${CMAKE_BINARY_DIR}/generated_' + GENERATED_GUID
+GENERATED_IN  = '${CMAKE_BINARY_DIR}/generated_$$ncg_guid$$'
+GENERATED_OUT = '${CMAKE_BINARY_DIR}/generated_' + binascii.b2a_hex(os.urandom(16))
 
 def get_cmake_os(platform):
     if platform.startswith('linux'):
@@ -90,7 +90,7 @@ class Writer(object):
 
     def _write(self, *args, **kwargs):
         indentation = ''.join(' ' for i in range(self._indent_level))
-        args = [indentation + arg.replace('%%ncg_guid%%', GENERATED_GUID) for arg in args]
+        args = [indentation + arg.replace(GENERATED_IN, GENERATED_OUT) for arg in args]
         print(*args, file=self._file, **kwargs)
 
     def _exposure(self, unqualified_name, property_name):
@@ -151,7 +151,7 @@ class Writer(object):
     def library_with_actions(self, unqualified_name, sources):
         self._write('add_library(')
         self._write('    {}'.format(unqualified_name))
-        self._write('    {}/dummy.cc'.format(GENERATED))
+        self._write('    {}/dummy.cc'.format(GENERATED_OUT))
         for source in sources:
             self._write('    {}'.format(source))
         self._write(')\n')
@@ -425,7 +425,7 @@ def generate_target_cmakes(platform, targets, analysis, all_targets):
 
     with open('CMakeLists.txt', 'w') as f:
         print('cmake_minimum_required(VERSION 3.8)\n', file=f)
-        print('file(WRITE {}/dummy.cc "")\n'.format(GENERATED), file=f)
+        print('file(WRITE {}/dummy.cc "")\n'.format(GENERATED_OUT), file=f)
         for lists, targets in all_lists.iteritems():
             directory = os.path.dirname(lists)
             if directory == '':
