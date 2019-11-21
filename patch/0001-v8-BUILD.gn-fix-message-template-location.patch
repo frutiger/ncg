@@ -1,0 +1,32 @@
+From 8540a225d04d50213b94e7f6e4ffdd555c29d8dc Mon Sep 17 00:00:00 2001
+From: Masud Rahman <mrahman15@bloomberg.net>
+Date: Thu, 21 Nov 2019 15:54:02 -0500
+Subject: [PATCH 1/2] v8/BUILD.gn: fix message-template location
+
+---
+ deps/v8/BUILD.gn | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/deps/v8/BUILD.gn b/deps/v8/BUILD.gn
+index efca4a626f..67b7b32002 100644
+--- a/deps/v8/BUILD.gn
++++ b/deps/v8/BUILD.gn
+@@ -2117,6 +2117,7 @@ v8_source_set("v8_base_without_compiler") {
+     "src/common/assert-scope.cc",
+     "src/common/assert-scope.h",
+     "src/common/checks.h",
++    "src/common/message-template.h",
+     "src/common/ptr-compr-inl.h",
+     "src/common/ptr-compr.h",
+     "src/compiler-dispatcher/compiler-dispatcher.cc",
+@@ -2189,7 +2190,6 @@ v8_source_set("v8_base_without_compiler") {
+     "src/execution/isolate-utils.h",
+     "src/execution/isolate.cc",
+     "src/execution/isolate.h",
+-    "src/execution/message-template.h",
+     "src/execution/messages.cc",
+     "src/execution/messages.h",
+     "src/execution/microtask-queue.cc",
+-- 
+2.24.0
+

@@ -1,7 +1,7 @@
 # NodeJS CMake Generator
 
 This repository contains Python scripts that produce modern CMake for the
-NodeJS project from its GYP files.  It has been tested for Node 10 on macOS and
+NodeJS project from its GYP files.  It has been tested for Node 12 on macOS and
 Linux platforms, though it may work on other platforms.
 
 ## Why Not Use GYP's CMake support?
@@ -32,10 +32,10 @@ $ git clone https://github.com/frutiger/ncg
 # clone NodeJS and change directory into it
 $ git clone https://github.com/nodejs/node && cd node
 
-# checkout v10 branch
-$ git checkout v10.x
+# checkout v12 branch
+$ git checkout v12.x
 
-# apply patch to remove erroneous file in v8.gyp
+# apply patches to fix erroneous deps/v8/BUILD.gn
 $ git am ../ncg/patch/*
 
 # delete any existing CMake files, these will interfere with our generated
@@ -54,16 +54,13 @@ $ PYTHONPATH=tools/gyp/pylib python ../ncg/generate.py
 
 # macOS only: remove CoreFoundation frameworks from link lines, as this
 # confuses CMake
-$ sed -i '' '/CoreFoundation/d' node.cmake node_lib.cmake cctest.cmake
+$ sed -i '' '/CoreFoundation/d' node.cmake node_mksnapshot.cmake \
+                                libnode.cmake cctest.cmake mkcodecache.cmake
 
 # generate Ninja files
 $ cd ..
 $ mkdir out && cd out
 $ cmake -D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_STANDARD=14 -G Ninja ../node
-
-# the checked in gyp files do not express this dependency correctly so we
-# manually generate it first
-$ ninja generated_*/torque-generated/builtin-definitions-from-dsl.h
 
 # build all targets
 $ ninja
@@ -86,7 +83,7 @@ on multiple platforms.
 
 ## Future Work
 
-We plan to maintain this change for newer versions of NodeJS (e.g. Node 12).
+We plan to maintain this change for newer versions of NodeJS (e.g. Node 13).
 
 The generated CMake includes a block for each combination of _configuration_
 (e.g. `Debug` vs. `Release`) and each operating system.  Finding commonalities
