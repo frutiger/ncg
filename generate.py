@@ -343,15 +343,14 @@ def generate_target(platform, name, target, analysis, all_targets):
                                            lambda _, target: target.get('defines', []),
                                            'target_compile_definitions',
                                            True)
+                generate_config_properties(writer,
+                                           unqualified_name,
+                                           target,
+                                           lambda _, target: link_dependencies,
+                                           'target_link_libraries',
+                                           True)
             else:
                 writer.custom_target(unqualified_name, sources, all_dependencies)
-
-            generate_config_properties(writer,
-                                       unqualified_name,
-                                       target,
-                                       lambda _, target: link_dependencies,
-                                       'target_link_libraries',
-                                       True)
         elif target_type:
             sources_flags_by_category = get_sources_flags_by_category(platform, target, sources)
             for category, sources_flags in sources_flags_by_category.iteritems():
