@@ -106,15 +106,17 @@ def analyze(targets):
         if target['type'] == 'executable':
             executables.add(name)
         if 'sources' not in target or all(s.endswith('.h') for s in target.get('sources', [])):
-            produces_sources = False
+            generated = False
             for action in target.get('actions', []):
                 if action.get('process_outputs_as_sources', False):
-                    produces_sources = True
+                    generated = True
+
                 for output in action.get('outputs', []):
                     if output.startswith(GENERATED):
                         all_generated_sources.add(output)
-            if target['type'] in {'shared_library', 'static_library'} and \
-                                                              produces_sources:
+                        generated = True
+
+            if generated:
                 generated_libraries.add(name)
             else:
                 interface_libraries.add(name)
