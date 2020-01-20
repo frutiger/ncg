@@ -2,10 +2,7 @@ from __future__ import print_function
 
 import binascii
 import os
-import sys
 import json
-import pprint
-import textwrap
 
 from collections import defaultdict
 
