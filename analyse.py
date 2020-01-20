@@ -2,7 +2,7 @@ import os
 import sys
 import json
 
-GENERATED = '${CMAKE_BINARY_DIR}/generated_$$ncg_guid$$'
+GENERATED = '${CMAKE_BINARY_DIR}/ncg_generated'
 ANALYSIS_FILE = './gyp_analysis.json'
 
 def get_OS():
