@@ -176,7 +176,10 @@ class Writer(object):
 
     def target(self, target_type, lib_type, unqualified_name, source_categories):
         self._write('add_{}('.format(target_type))
-        self._write('    {}'.format(unqualified_name))
+        if lib_type:
+            self._write('    {} {}'.format(unqualified_name, lib_type))
+        else:
+            self._write('    {}'.format(unqualified_name))
         for category in source_categories:
             self._write('    $<TARGET_OBJECTS:{}-{}>'.format(unqualified_name,
                 category))
