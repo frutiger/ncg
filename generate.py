@@ -291,19 +291,19 @@ def generate_target(platform, name, target, analysis, all_targets):
         dependencies += target.get('dependencies', [])
         dependencies += target.get('dependencies_original', [])
 
-        link_dependencies    = set()
-        nonlink_dependencies = set()
-        all_dependencies     = set()
+        link_dependencies    = []
+        nonlink_dependencies = []
+        all_dependencies     = []
         for d in dependencies:
             unqualified_depedency = unqualify_name(d)
 
-            all_dependencies.add(unqualified_depedency)
+            all_dependencies.append(unqualified_depedency)
 
             if d in analysis['generated_libraries'] or \
                                                   d in analysis['executables']:
-                nonlink_dependencies.add(unqualified_depedency)
+                nonlink_dependencies.append(unqualified_depedency)
             else:
-                link_dependencies.add(unqualified_depedency)
+                link_dependencies.append(unqualified_depedency)
 
         target_type = None
         library_type = None
@@ -322,7 +322,7 @@ def generate_target(platform, name, target, analysis, all_targets):
             if len(sources) > 0:
                 action_target = '{}-{}'.format(unqualified_name, 'actions')
                 writer.custom_target(action_target, sources, all_dependencies)
-                nonlink_dependencies.add(action_target)
+                nonlink_dependencies.append(action_target)
 
             # TBD: do we need to export 'c' flags also?
             flags_factory = get_flags_factories(platform, target)('cc')
@@ -348,8 +348,7 @@ def generate_target(platform, name, target, analysis, all_targets):
                                        unqualified_name,
                                        target,
                                        lambda _, target: link_dependencies,
-                                       'target_link_libraries',
-                                       True)
+                                       'target_link_libraries')
 
             writer.properties('add_dependencies', unqualified_name, nonlink_dependencies)
         elif target_type:
@@ -396,9 +395,8 @@ def generate_target(platform, name, target, analysis, all_targets):
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: list(link_dependencies) + target.get('libraries', []) + target.get('ldflags', []),
-                                       'target_link_libraries',
-                                       True)
+                                       lambda _, target: link_dependencies + target.get('libraries', []) + target.get('ldflags', []),
+                                       'target_link_libraries')
         writer.platform_end()
 
     return lists, unqualified_name
