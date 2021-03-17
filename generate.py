@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 
 import gyp.xcode_emulation
+import gyp.msvs_emulation
 
 ANALYSIS_FILE = 'gyp_analysis.json'
 
@@ -48,6 +49,23 @@ def xcode_flags_factories(xcode):
         return get_flags
     return get_factory
 
+def msvs_flags_factories(msvs):
+    def get_factory(category):
+        def get_flags(configuration_name, _):
+            if configuration_name is None:
+                return []
+            flags = []
+            if category == 'c':
+                flags += msvs.GetCflagsC(configuration_name)
+            elif category == 'cc':
+                flags += msvs.GetCflagsCC(configuration_name)
+            else:
+                raise RuntimeError('Unknown category: ' + category)
+            flags += msvs.GetCflags(configuration_name)
+            return flags
+        return get_flags
+    return get_factory
+
 def generic_flags_factories():
     def get_factory(category):
         def get_flags(configuration_name, configuration):
@@ -72,8 +90,7 @@ def get_flags_factories(platform, target):
         return xcode_flags_factories(gyp.xcode_emulation.XcodeSettings(target))
 
     if platform == 'Windows':
-        # TBD: implement for win32
-        raise RuntimeError('Currently unsupported platform: ' + platform)
+        return msvs_flags_factories(gyp.msvs_emulation.MsvsSettings(target, {}))
 
     return generic_flags_factories()
 
