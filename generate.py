@@ -94,6 +94,17 @@ def get_flags_factories(platform, target):
 
     return generic_flags_factories()
 
+def get_defines_factories(platform, target):
+    def get_defines(config, config_target):
+        defines = config_target.get('defines', [])
+        extra_defines= []
+        if platform  == "Windows":
+            if config in CONFIGURATIONS:
+                msvs_settings = gyp.msvs_emulation.MsvsSettings(target, {})
+                extra_defines = msvs_settings.GetComputedDefines(config)
+        return defines + extra_defines
+    return get_defines
+
 class Writer(object):
     def __init__(self, file):
         self._file         = file
@@ -389,7 +400,7 @@ def generate_target(platform, name, target, analysis, all_targets):
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
                                            target,
-                                           lambda _, target: target.get('defines', []),
+                                           get_defines_factories(platform, target),
                                            'target_compile_definitions',
                                            True)
 
