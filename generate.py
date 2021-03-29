@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 
 import gyp.xcode_emulation
+import gyp.msvs_emulation
 
 ANALYSIS_FILE = 'gyp_analysis.json'
 
@@ -48,6 +49,23 @@ def xcode_flags_factories(xcode):
         return get_flags
     return get_factory
 
+def msvs_flags_factories(msvs):
+    def get_factory(category):
+        def get_flags(configuration_name, _):
+            if configuration_name is None:
+                return []
+            flags = []
+            if category == 'c':
+                flags += msvs.GetCflagsC(configuration_name)
+            elif category == 'cc':
+                flags += msvs.GetCflagsCC(configuration_name)
+            else:
+                raise RuntimeError('Unknown category: ' + category)
+            flags += msvs.GetCflags(configuration_name)
+            return flags
+        return get_flags
+    return get_factory
+
 def generic_flags_factories():
     def get_factory(category):
         def get_flags(configuration_name, configuration):
@@ -72,10 +90,34 @@ def get_flags_factories(platform, target):
         return xcode_flags_factories(gyp.xcode_emulation.XcodeSettings(target))
 
     if platform == 'Windows':
-        # TBD: implement for win32
-        raise RuntimeError('Currently unsupported platform: ' + platform)
+        return msvs_flags_factories(gyp.msvs_emulation.MsvsSettings(target, {}))
 
     return generic_flags_factories()
+
+def get_defines_factories(platform, target):
+    def get_defines(config, config_target):
+        defines = config_target.get('defines', [])
+        extra_defines= []
+        if platform  == "Windows":
+            if config in CONFIGURATIONS:
+                msvs_settings = gyp.msvs_emulation.MsvsSettings(target, {})
+                extra_defines = msvs_settings.GetComputedDefines(config)
+        return defines + extra_defines
+    return get_defines
+
+def fix_win_lib_names(libs):
+    '''
+    It is valid for gyp to prefix a library name with "-l", for example,
+    -lgdi32. However, for cmake, we need to strip the "-l" part.
+    '''
+    return [lib[2:] if lib.startswith("-l") else lib for lib in libs]
+
+def get_fix_libs_factory(platform) :
+    def fix_libs(libs):
+        if platform == "Windows":
+            result = fix_win_lib_names(libs)
+        return result
+    return fix_libs
 
 class Writer(object):
     def __init__(self, file):
@@ -347,7 +389,7 @@ def generate_target(platform, name, target, analysis, all_targets):
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: link_dependencies,
+                                       lambda _, target: get_fix_libs_factory(platform)(link_dependencies),
                                        'target_link_libraries')
 
             writer.properties('add_dependencies', unqualified_name, nonlink_dependencies)
@@ -357,7 +399,6 @@ def generate_target(platform, name, target, analysis, all_targets):
                 sources, flags = sources_flags
                 if len(sources) == 0:
                     continue
-
                 writer.object_library(unqualified_name, category, sources)
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
@@ -372,7 +413,7 @@ def generate_target(platform, name, target, analysis, all_targets):
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
                                            target,
-                                           lambda _, target: target.get('defines', []),
+                                           get_defines_factories(platform, target),
                                            'target_compile_definitions',
                                            True)
 
@@ -395,7 +436,7 @@ def generate_target(platform, name, target, analysis, all_targets):
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: link_dependencies + target.get('libraries', []) + target.get('ldflags', []),
+                                       lambda _, target: get_fix_libs_factory(platform)(link_dependencies + target.get('libraries', []) + target.get('ldflags', [])),
                                        'target_link_libraries')
         writer.platform_end()
 
@@ -446,4 +487,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
