@@ -105,6 +105,20 @@ def get_defines_factories(platform, target):
         return defines + extra_defines
     return get_defines
 
+def fix_win_lib_names(libs):
+    '''
+    It is valid for gyp to prefix a library name with "-l", for example,
+    -lgdi32. However, for cmake, we need to strip the "-l" part.
+    '''
+    return [lib[2:] if lib.startswith("-l") else lib for lib in libs]
+
+def get_fix_libs_factory(platform) :
+    def fix_libs(libs):
+        if platform == "Windows":
+            result = fix_win_lib_names(libs)
+        return result
+    return fix_libs
+
 class Writer(object):
     def __init__(self, file):
         self._file         = file
@@ -375,7 +389,7 @@ def generate_target(platform, name, target, analysis, all_targets):
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: link_dependencies,
+                                       lambda _, target: get_fix_libs_factory(platform)(link_dependencies),
                                        'target_link_libraries')
 
             writer.properties('add_dependencies', unqualified_name, nonlink_dependencies)
@@ -385,7 +399,6 @@ def generate_target(platform, name, target, analysis, all_targets):
                 sources, flags = sources_flags
                 if len(sources) == 0:
                     continue
-
                 writer.object_library(unqualified_name, category, sources)
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
@@ -423,7 +436,7 @@ def generate_target(platform, name, target, analysis, all_targets):
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: link_dependencies + target.get('libraries', []) + target.get('ldflags', []),
+                                       lambda _, target: get_fix_libs_factory(platform)(link_dependencies + target.get('libraries', []) + target.get('ldflags', [])),
                                        'target_link_libraries')
         writer.platform_end()
 
@@ -474,4 +487,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
