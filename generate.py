@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from abc import ABCMeta, abstractmethod
 import os
 import json
 
@@ -17,6 +18,63 @@ SOURCE_CATEGORIES = {
 }
 GENERATED = '${CMAKE_BINARY_DIR}/ncg_generated'
 
+def get_c_flags(emulation_settings, category, configuration_name):
+    if configuration_name is None:
+        return []
+
+    flags = []
+    if category == 'c':
+        flags += emulation_settings.GetCflagsC(configuration_name)
+    elif category == 'cc':
+        flags += emulation_settings.GetCflagsCC(configuration_name)
+    else:
+        raise RuntimeError('Unknown category: ' + category)
+    flags += emulation_settings.GetCflags(configuration_name)
+
+    return flags
+
+class Emulation_Settings():
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def get_c_flags(self, category, configuration_name):
+      pass
+
+class XCode_Settings(Emulation_Settings):
+    def __init__(self, target):
+        self.settings = gyp.xcode_emulation.XcodeSettings(target)
+
+    def get_c_flags(self, category, configuration_name):
+        return get_c_flags(self.settings, category, configuration_name)
+
+class Generic_Settings(Emulation_Settings):
+    def __init__(self, target):
+        self.target = target
+
+    def get_c_flags(self, category, configuration_name):
+        if configuration_name is None:
+            return []
+
+        flags = []
+        if category == 'c':
+            flags += self.target.get('cflags_c', [])
+        elif category == 'cc':
+            flags += self.target.get('cflags_cc', [])
+        else:
+            raise RuntimeError('Unknown category: ' + category)
+        flags += self.target.get('cflags', [])
+
+        return flags
+
+def get_emulation_settings(platform, target):
+    if platform == 'Darwin':
+        return XCode_Settings(target)
+    elif platform == 'Windows':
+        # TBD: implement for win32
+        raise RuntimeError('Currently unsupported platform: ' + platform)
+    else:
+        return Generic_Settings(target)
+
 def get_cmake_os(platform):
     if platform.startswith('linux'):
         return 'Linux'
@@ -29,53 +87,13 @@ def get_cmake_os(platform):
 
     raise RuntimeError('Unknown platform: {}'.format(platform))
 
-def xcode_flags_factories(xcode):
-    def get_factory(category):
-        def get_flags(configuration_name, _):
-            if configuration_name is None:
-                return []
 
-            flags = []
-            if category == 'c':
-                flags += xcode.GetCflagsC(configuration_name)
-            elif category == 'cc':
-                flags += xcode.GetCflagsCC(configuration_name)
-            else:
-                raise RuntimeError('Unknown category: ' + category)
-            flags += xcode.GetCflags(configuration_name)
-
-            return flags
-        return get_flags
-    return get_factory
-
-def generic_flags_factories():
+def get_flags_factories(emulation_settings):
     def get_factory(category):
         def get_flags(configuration_name, configuration):
-            if configuration_name is None:
-                return []
-
-            flags = []
-            if category == 'c':
-                flags += configuration.get('cflags_c', [])
-            elif category == 'cc':
-                flags += configuration.get('cflags_cc', [])
-            else:
-                raise RuntimeError('Unknown category: ' + category)
-            flags += configuration.get('cflags', [])
-
-            return flags
+            return emulation_settings.get_c_flags(category, configuration_name)
         return get_flags
     return get_factory
-
-def get_flags_factories(platform, target):
-    if platform == 'Darwin':
-        return xcode_flags_factories(gyp.xcode_emulation.XcodeSettings(target))
-
-    if platform == 'Windows':
-        # TBD: implement for win32
-        raise RuntimeError('Currently unsupported platform: ' + platform)
-
-    return generic_flags_factories()
 
 class Writer(object):
     def __init__(self, file):
@@ -203,7 +221,7 @@ class Writer(object):
 def unqualify_name(gyp_target):
     return gyp_target.split(':')[1].split('#')[0]
 
-def get_sources_flags_by_category(platform, target, sources):
+def get_sources_flags_by_category(emulation_settings, sources):
     result = defaultdict(lambda: [set(), None])
 
     for source in sources:
@@ -217,7 +235,7 @@ def get_sources_flags_by_category(platform, target, sources):
                 extension = os.path.splitext(source)[1]
                 if extension == '.h':
                     result[category][0].add(source)
-    flags_factories = get_flags_factories(platform, target)
+    flags_factories = get_flags_factories(emulation_settings)
     for category in SOURCE_CATEGORIES:
         result[category][1] = flags_factories(category)
 
@@ -272,6 +290,8 @@ def generate_target(platform, name, target, analysis, all_targets):
     lists = os.path.join(path, 'CMakeLists.txt')
     cmake = os.path.join(path, '{}.cmake'.format(unqualified_name))
 
+    emulation_settings = get_emulation_settings(platform, target)
+
     if unqualified_name not in all_targets:
         all_targets.add(unqualified_name)
         with open(lists, 'a') as f:
@@ -325,7 +345,7 @@ def generate_target(platform, name, target, analysis, all_targets):
                 nonlink_dependencies.append(action_target)
 
             # TBD: do we need to export 'c' flags also?
-            flags_factory = get_flags_factories(platform, target)('cc')
+            flags_factory = get_flags_factories(emulation_settings)('cc')
 
             writer.interface_library(unqualified_name)
             generate_config_properties(writer,
@@ -352,7 +372,7 @@ def generate_target(platform, name, target, analysis, all_targets):
 
             writer.properties('add_dependencies', unqualified_name, nonlink_dependencies)
         elif target_type:
-            sources_flags_by_category = get_sources_flags_by_category(platform, target, sources)
+            sources_flags_by_category = get_sources_flags_by_category(emulation_settings, sources)
             for category, sources_flags in sources_flags_by_category.iteritems():
                 sources, flags = sources_flags
                 if len(sources) == 0:
