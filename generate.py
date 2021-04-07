@@ -7,6 +7,7 @@ import json
 from collections import defaultdict
 
 import gyp.xcode_emulation
+import gyp.msvs_emulation
 
 ANALYSIS_FILE = 'gyp_analysis.json'
 
@@ -47,6 +48,13 @@ class XCode_Settings(Emulation_Settings):
     def get_c_flags(self, category, configuration_name):
         return get_c_flags(self.settings, category, configuration_name)
 
+class Msvs_Settings(Emulation_Settings):
+    def __init__(self, target):
+        self.settings = gyp.msvs_emulation.MsvsSettings(target, {})
+
+    def get_c_flags(self, category, configuration_name):
+        return get_c_flags(self.settings, category, configuration_name)
+
 class Generic_Settings(Emulation_Settings):
     def __init__(self, target):
         self.target = target
@@ -70,8 +78,7 @@ def get_emulation_settings(platform, target):
     if platform == 'Darwin':
         return XCode_Settings(target)
     elif platform == 'Windows':
-        # TBD: implement for win32
-        raise RuntimeError('Currently unsupported platform: ' + platform)
+        return Msvs_Settings(target)
     else:
         return Generic_Settings(target)
 

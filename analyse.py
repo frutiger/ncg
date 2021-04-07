@@ -13,7 +13,7 @@ def get_OS():
         return 'linux'
 
     if sys.platform == 'win32':
-        return 'win32'
+        return 'win'
 
 generator_default_variables = {
     'OS': get_OS(),
