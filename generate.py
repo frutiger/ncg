@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 
 import gyp.xcode_emulation
+import gyp.msvs_emulation
 
 ANALYSIS_FILE = 'gyp_analysis.json'
 
@@ -29,53 +30,73 @@ def get_cmake_os(platform):
 
     raise RuntimeError('Unknown platform: {}'.format(platform))
 
-def xcode_flags_factories(xcode):
-    def get_factory(category):
-        def get_flags(configuration_name, _):
-            if configuration_name is None:
-                return []
+class Properties(object):
+    def __init__(self, category):
+        self._category = category
 
-            flags = []
-            if category == 'c':
-                flags += xcode.GetCflagsC(configuration_name)
-            elif category == 'cc':
-                flags += xcode.GetCflagsCC(configuration_name)
-            else:
-                raise RuntimeError('Unknown category: ' + category)
-            flags += xcode.GetCflags(configuration_name)
+    def compile_flags(self, configuration_name, configuration):
+        if configuration_name is None:
+            return []
 
-            return flags
-        return get_flags
-    return get_factory
+        flags = []
+        if self._category == 'c':
+            flags += configuration.get('cflags_c', [])
+        elif self._category == 'cc':
+            flags += configuration.get('cflags_cc', [])
+        else:
+            raise RuntimeError('Unknown category: ' + self._category)
+        flags += configuration.get('cflags', [])
 
-def generic_flags_factories():
-    def get_factory(category):
-        def get_flags(configuration_name, configuration):
-            if configuration_name is None:
-                return []
+        return flags
 
-            flags = []
-            if category == 'c':
-                flags += configuration.get('cflags_c', [])
-            elif category == 'cc':
-                flags += configuration.get('cflags_cc', [])
-            else:
-                raise RuntimeError('Unknown category: ' + category)
-            flags += configuration.get('cflags', [])
+    @staticmethod
+    def defines(self, configuration_name, configuration):
+        return configuration.get('defines', [])
 
-            return flags
-        return get_flags
-    return get_factory
+    @staticmethod
+    def include_dirs(self, configuration_name, configuration):
+        return configuration.get('include_dirs', [])
 
-def get_flags_factories(platform, target):
+class EmulatedProperties(object):
+    def __init__(self, settings, category):
+        self._settings = settings
+        self._category = category
+
+    def compile_flags(self, configuration_name, configuration):
+        if configuration_name is None:
+            return []
+
+        flags = []
+        if self._category == 'c':
+            flags += self._settings.GetCflagsC(configuration_name)
+        elif self._category == 'cc':
+            flags += self._settings.GetCflagsCC(configuration_name)
+        else:
+            raise RuntimeError('Unknown category: ' + self._category)
+        flags += self._settings.GetCflags(configuration_name)
+
+        return flags
+
+    def defines(self, configuration_name, configuration):
+        defines = Properties.defines(configuration_name, configuration)
+
+        if hasattr(self._settings, 'GetComputedDefines'):
+            defines += self._settings.GetComputedDefines(configuration_name)
+
+        return defines
+
+    def include_dirs(self, configuration_name, configuration):
+        return Properties.include_dirs(configuration_name, configuration)
+
+def get_properties_factory(platform, target, category):
     if platform == 'Darwin':
-        return xcode_flags_factories(gyp.xcode_emulation.XcodeSettings(target))
-
-    if platform == 'Windows':
-        # TBD: implement for win32
-        raise RuntimeError('Currently unsupported platform: ' + platform)
-
-    return generic_flags_factories()
+        return EmulatedProperties(gyp.xcode_emulation.XcodeSettings(target),
+                                  category)
+    elif platform == 'Windows':
+        return EmulatedProperties(gyp.msvs_emulation.MsvsSettings(target, {}),
+                                  category)
+    else:
+        return Properties(category)
 
 class Writer(object):
     def __init__(self, file):
@@ -203,7 +224,7 @@ class Writer(object):
 def unqualify_name(gyp_target):
     return gyp_target.split(':')[1].split('#')[0]
 
-def get_sources_flags_by_category(platform, target, sources):
+def get_sources_properties_by_category(platform, target, sources):
     result = defaultdict(lambda: [set(), None])
 
     for source in sources:
@@ -217,9 +238,8 @@ def get_sources_flags_by_category(platform, target, sources):
                 extension = os.path.splitext(source)[1]
                 if extension == '.h':
                     result[category][0].add(source)
-    flags_factories = get_flags_factories(platform, target)
     for category in SOURCE_CATEGORIES:
-        result[category][1] = flags_factories(category)
+        result[category][1] = get_properties_factory(platform, target, category)
 
     return { category: value for category, value in result.iteritems() \
                                                              if len(value[0]) }
@@ -325,23 +345,23 @@ def generate_target(platform, name, target, analysis, all_targets):
                 nonlink_dependencies.append(action_target)
 
             # TBD: do we need to export 'c' flags also?
-            flags_factory = get_flags_factories(platform, target)('cc')
+            properties = get_properties_factory(platform, target, 'cc')
 
             writer.interface_library(unqualified_name)
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       flags_factory,
+                                       properties.compile_flags,
                                        'target_compile_options')
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: target.get('include_dirs', []),
+                                       properties.include_dirs,
                                        'target_include_directories')
             generate_config_properties(writer,
                                        unqualified_name,
                                        target,
-                                       lambda _, target: target.get('defines', []),
+                                       properties.defines,
                                        'target_compile_definitions',
                                        True)
             generate_config_properties(writer,
@@ -352,9 +372,9 @@ def generate_target(platform, name, target, analysis, all_targets):
 
             writer.properties('add_dependencies', unqualified_name, nonlink_dependencies)
         elif target_type:
-            sources_flags_by_category = get_sources_flags_by_category(platform, target, sources)
-            for category, sources_flags in sources_flags_by_category.iteritems():
-                sources, flags = sources_flags
+            sources_properties_by_category = get_sources_properties_by_category(platform, target, sources)
+            for category, sources_properties in sources_properties_by_category.iteritems():
+                sources, properties = sources_properties
                 if len(sources) == 0:
                     continue
 
@@ -362,17 +382,17 @@ def generate_target(platform, name, target, analysis, all_targets):
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
                                            target,
-                                           flags,
+                                           properties.compile_flags,
                                            'target_compile_options')
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
                                            target,
-                                           lambda _, target: target.get('include_dirs', []),
+                                           properties.include_dirs,
                                            'target_include_directories')
                 generate_config_properties(writer,
                                            '{}-{}'.format(unqualified_name, category),
                                            target,
-                                           lambda _, target: target.get('defines', []),
+                                           properties.defines,
                                            'target_compile_definitions',
                                            True)
 
@@ -390,7 +410,7 @@ def generate_target(platform, name, target, analysis, all_targets):
             writer.target(target_type,
                           library_type,
                           unqualified_name,
-                          sources_flags_by_category.keys())
+                          sources_properties_by_category.keys())
 
             generate_config_properties(writer,
                                        unqualified_name,
